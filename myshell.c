@@ -1,6 +1,3 @@
-//
-// myshell.c : 簡易UNIXシェル（リダイレクト機能準備完了版）
-//
 #include <stdio.h>                              // perror() のため
 #include <stdlib.h>                             // exit() のため
 #include <string.h>                             // strcmp(), strchr() のため
@@ -68,15 +65,10 @@ void findRedirect(char *args[]) {               // リダイレクトの指示�
 }
 
 void redirect(int fd, char *path, int flag) {   // リダイレクト処理をする
-  //
-  // externalCom 関数のどこかから呼び出される
-  //
-  // fd   : リダイレクトするファイルディスクリプタ
-  // path : リダイレクト先ファイル
-  // flag : open システムコールに渡すフラグ
-  //        入力の場合 O_RDONLY
-  //        出力の場合 O_WRONLY|O_TRUNC|O_CREAT
-  //
+  if ((fd = open(path, flag, 0644)) < 0) {       // ファイルを開く
+    perror(path);                               //   エラー処理
+    exit(1);                                    //   異常終了
+  }                              
 }
 
 void externalCom(char *args[]) {                // 外部コマンドを実行する
@@ -86,9 +78,15 @@ void externalCom(char *args[]) {                // 外部コマンドを実行�
     exit(1);                                    //     非常事態，親を終了
   }
   if (pid==0) {                                 //   子プロセスなら
+    if (ifile != NULL) {                        //     入力リダイレクトがある場合
+      redirect(0, ifile, O_RDONLY);             //       リダイレクト処理
+    }
+    if (ofile != NULL) {                        //     出力リダイレクトがある場合
+      redirect(1, ofile, O_WRONLY|O_TRUNC|O_CREAT); //   リダイレクト処理
+    }
     execvp(args[0], args);                      //     コマンドを実行
-    perror(args[0]);
-    exit(1);
+    perror(args[0]);                            //     実行失敗時のエラー処理
+    exit(1);                                    //     異常終了
   } else {                                      //   親プロセスなら
     while (wait(&status) != pid)                //     子の終了を待つ
       ;
@@ -129,4 +127,26 @@ int main() {
   }
   return 0;
 }
-
+/*
+実行例
+% cc -D_GNU_SOURCE -Wall -std=c99 -o myshell myshell.c
+% ls > aaa.txt 
+% cat < aaa.txt
+Makefile
+README.md
+README.pdf
+aaa.txt
+myshell
+myshell.c
+% echo "Test" > bbb.txt
+% cat < bbb.txt      
+Test
+% ls > 
+zsh: parse error near `\n'
+% cat < ccc.txt
+zsh: no such file or directory: ccc.txt
+% echo "test" > ccc.txt
+% cat < ccc.txt > ddd.txt  
+% cat ddd.txt                      
+test
+*/
